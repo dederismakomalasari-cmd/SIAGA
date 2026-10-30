@@ -1,0 +1,9 @@
+.venv/
+venv/
+siaga.db
+models/
+snapshots/
+*.mp4
+*.avi
+__pycache__/
+*.pyc

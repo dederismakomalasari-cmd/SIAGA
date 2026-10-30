@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<title>SIAGA - Pengawas KAI</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui;background:#0b1220;color:#e5e7eb}
+  header{display:flex;justify-content:space-between;align-items:center;
+         padding:14px 22px;background:#111a2e;border-bottom:1px solid #1e293b}
+  header h1{font-size:18px;margin:0}
+  header .info{color:#94a3b8;font-size:13px}
+  .wrap{padding:16px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+         gap:12px;margin-bottom:20px}
+  .cxCard{background:#111a2e;border-radius:12px;padding:14px;
+          border-left:5px solid #334155;transition: border-color 0.3s}
+  .cxCard.high{border-color:#ef4444}
+  .cxCard.mid{border-color:#f59e0b}
+  .cxCard.low{border-color:#10b981}
+  .cxCard h3{margin:0 0 6px;font-size:15px}
+  .cxCard p{margin:2px 0;color:#94a3b8;font-size:13px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;
+        font-size:11px;font-weight:700;text-transform:uppercase}
+  .pill.high{background:#7f1d1d;color:#fecaca}
+  .pill.mid{background:#78350f;color:#fcd34d}
+  .pill.low{background:#064e3b;color:#6ee7b7}
+  
+  .table-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .table-header h2{font-size:14px;color:#94a3b8;text-transform:uppercase; margin:0;}
+  .btn-toggle{background:#1e293b; color:#e2e8f0; border:1px solid #334155; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; transition:0.2s;}
+  .btn-toggle:hover{background:#334155;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#111a2e;
+        border-radius:12px;overflow:hidden}
+  th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #1e293b}
+  th{background:#0d1626;color:#94a3b8;font-size:11px;text-transform:uppercase}
+  tr:hover td{background:#16213a}
+  .snap{width:80px;border-radius:4px;cursor:pointer}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;
+         align-items:center;justify-content:center;z-index:99}
+  .modal img{max-width:90vw;max-height:90vh;border-radius:8px}
+
+  /* --- STYLE UNTUK POP-UP ALARM KAI --- */
+  .alarm-popup {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.8); display: none; align-items: center;
+    justify-content: center; z-index: 1000; backdrop-filter: blur(4px);
+  }
+  .alarm-box {
+    background: #1e1b2e; border: 2px solid #ef4444; border-radius: 12px;
+    width: 500px; max-width: 90%; padding: 20px; box-shadow: 0 0 30px rgba(239,68,68,0.3);
+    animation: pulse-border 1.5s infinite;
+  }
+  @keyframes pulse-border {
+    0% { box-shadow: 0 0 0 0 rgba(239,68,68, 0.5); }
+    70% { box-shadow: 0 0 0 20px rgba(239,68,68, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(239,68,68, 0); }
+  }
+  .alarm-box h2 { margin: 0 0 10px; color: #fca5a5; display: flex; align-items: center; gap: 10px; }
+  .alarm-box p { margin: 5px 0; color: #e5e7eb; font-size: 14px; }
+  .alarm-snap { width: 100%; border-radius: 8px; margin: 15px 0; border: 1px solid #334155; }
+  .alarm-btn {
+    width: 100%; padding: 12px; background: #ef4444; color: white;
+    border: none; border-radius: 8px; font-weight: bold; cursor: pointer;
+    font-size: 15px; transition: 0.2s;
+  }
+  .alarm-btn:hover { background: #dc2626; }
+</style>
+</head>
+<body>
+<header>
+  <h1 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+    <img src="SIAGA.png" alt="Logo SIAGA" style="height: 35px; width: auto;">
+    <span style="font-size: 16px; font-style: italic;">- Pengawas KAI</span>
+  </h1>
+  <div class="info"><span id="who"></span> · <a href="/ui/login.html"
+       style="color:#60a5fa;text-decoration:none" onclick="localStorage.clear()">keluar</a></div>
+</header>
+
+<div class="wrap">
+  <h2 style="font-size:14px;color:#94a3b8;text-transform:uppercase; margin-bottom:10px;">Status Semua Perlintasan</h2>
+  <div id="cards" class="cards"></div>
+
+  <div class="table-header">
+    <h2>Riwayat Peringatan</h2>
+    <button id="btnToggle" class="btn-toggle" onclick="toggleFilter()">Tampilkan Semua Data (Termasuk Pending)</button>
+  </div>
+  
+  <table>
+    <thead>
+      <tr><th>Waktu</th><th>Crossing</th><th>Risiko</th><th>TTA</th>
+          <th>Snapshot</th><th>Status Validasi</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+
+<!-- MODAL GAMBAR BIASA -->
+<div class="modal" id="modal" onclick="this.style.display='none'">
+  <img id="modalImg"/>
+</div>
+
+<!-- MODAL POP-UP ALARM KAI -->
+<div class="alarm-popup" id="alarmPopup">
+  <div class="alarm-box">
+    <h2>PERINGATAN BAHAYA (TERVALIDASI)</h2>
+    <p style="color: #94a3b8; font-size: 12px;">Petugas lapangan telah mengonfirmasi bahaya ini.</p>
+    <hr style="border-color: #334155; margin: 10px 0;">
+    <p><b>Lokasi:</b> <span id="popupCx"></span></p>
+    <p><b>Waktu:</b> <span id="popupTime"></span></p>
+    <p><b>TTA Kereta:</b> <span id="popupTta" style="color: #fca5a5; font-weight: bold;"></span></p>
+    <p><b>Objek:</b> <span id="popupObj"></span></p>
+    <img id="popupSnap" class="alarm-snap" src="" alt="Snapshot Bahaya"/>
+    <button class="alarm-btn" onclick="closeAlarm()">Saya Mengerti & Tindak Lanjut</button>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('siaga_token');
+const ROLE = localStorage.getItem('siaga_role');
+if(!TOKEN || ROLE!=='kai'){location.href='/ui/login.html';}
+document.getElementById('who').textContent = localStorage.getItem('siaga_name')||'';
+const H = {'Authorization':`Bearer ${TOKEN}`};
+
+const statusMap = {};      
+let crossings = [];
+let showAll = false; 
+let alarmQueue = []; // Antrean pop-up agar tidak bertumpuk
+let isAlarmShowing = false;
+
+// --- FUNGSI ALARM POP-UP ---
+function playBeep() {
+    try {
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 950;
+        osc.connect(ctx.destination);
+        osc.start(); 
+        setTimeout(()=>osc.stop(), 300);
+        setTimeout(() => {
+           const osc2 = ctx.createOscillator();
+           osc2.frequency.value = 950; osc2.connect(ctx.destination);
+           osc2.start(); setTimeout(()=>osc2.stop(), 300);
+        }, 400);
+    } catch(_){}
+}
+
+function showNextAlarm() {
+    if (isAlarmShowing || alarmQueue.length === 0) return;
+    
+    isAlarmShowing = true;
+    const data = alarmQueue.shift();
+    playBeep();
+
+    document.getElementById('popupCx').textContent = data.crossing_id;
+    document.getElementById('popupTime').textContent = new Date(data.timestamp).toLocaleString('id-ID');
+    document.getElementById('popupTta').textContent = `${data.tta_seconds?.toFixed(1)} detik lagi kereta tiba!`;
+    document.getElementById('popupObj').textContent = `${data.objects?.length || 0} objek terdeteksi di zona bahaya`;
+    
+    const snapUrl = data.snapshot_path ? `/snapshots/${data.snapshot_path}` : '';
+    document.getElementById('popupSnap').src = snapUrl;
+    document.getElementById('popupSnap').style.display = snapUrl ? 'block' : 'none';
+
+    document.getElementById('alarmPopup').style.display = 'flex';
+}
+
+function closeAlarm() {
+    document.getElementById('alarmPopup').style.display = 'none';
+    isAlarmShowing = false;
+    // Cek jika ada antrean alarm berikutnya
+    setTimeout(showNextAlarm, 500); 
+}
+
+// --- LOGIKA DASHBOARD ---
+async function loadCrossings(){
+  const r = await fetch('/api/crossings',{headers:H});
+  crossings = await r.json();
+  crossings.forEach(c=>statusMap[c.id]=statusMap[c.id] ?? 0);
+  renderCards();
+}
+
+function renderCards(){
+  const el = document.getElementById('cards');
+  el.innerHTML='';
+  crossings.forEach(c=>{
+    const lvl = statusMap[c.id] ?? 0;
+    const cls = lvl===2?'high':lvl===1?'mid':'low';
+    const label = lvl===2?'BAHAYA':lvl===1?'PERHATIAN':'AMAN';
+    el.insertAdjacentHTML('beforeend', `
+      <div class="cxCard ${cls}">
+        <h3>${c.name}</h3>
+        <p>ID: ${c.id}</p>
+        <p style="margin-top:8px"><span class="pill ${cls}">${label}</span></p>
+        <p style="margin-top:8px"><a target="_blank" style="color:#60a5fa"
+          href="/stream/${c.id}">lihat live stream →</a></p>
+      </div>
+    `);
+  });
+}
+
+function toggleFilter() {
+    showAll = !showAll;
+    const btn = document.getElementById('btnToggle');
+    btn.textContent = showAll ? 'Tampilkan Hanya Terkonfirmasi' : 'Tampilkan Semua Data (Termasuk Pending)';
+    loadAlerts();
+}
+
+async function loadAlerts(){
+  const url = `/api/alerts?limit=200&only_confirmed=${!showAll}`;
+  const r = await fetch(url,{headers:H});
+  const rows = await r.json();
+  const tb = document.getElementById('tbody');
+  tb.innerHTML='';
+
+  if (rows.length === 0) {
+      tb.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#64748b; padding: 20px;">
+        ${showAll ? 'Belum ada riwayat peringatan sama sekali.' : 'Belum ada peringatan yang dikonfirmasi oleh petugas lapangan.'}
+      </td></tr>`;
+      return;
+  }
+
+  rows.forEach(a=>{
+    const lvl = a.risk_level===2?'high':a.risk_level===1?'mid':'low';
+    const snap = a.snapshot_path ? `<img class="snap" src="/snapshots/${a.snapshot_path}"
+        onclick="showImg('/snapshots/${a.snapshot_path}')"/>` : '-';
+    
+    let statusHtml = '';
+    if (a.acked) {
+        statusHtml = `<span style="color:#10b981; font-weight:bold;">✔ Divalidasi (${a.acked_by})</span>`;
+    } else {
+        statusHtml = `<span style="color:#f59e0b;"> Menunggu Validasi</span>`;
+    }
+
+    tb.insertAdjacentHTML('beforeend', `
+      <tr>
+        <td>${new Date(a.timestamp).toLocaleString('id-ID')}</td>
+        <td>${a.crossing_id}</td>
+        <td><span class="pill ${lvl}">${a.risk_label}</span></td>
+        <td>${a.tta_seconds?.toFixed(1) ?? '-'}</td>
+        <td>${snap}</td>
+        <td>${statusHtml}</td>
+      </tr>
+    `);
+  });
+}
+
+function showImg(url){
+  document.getElementById('modalImg').src = url;
+  document.getElementById('modal').style.display='flex';
+}
+
+// --- WEBSOCKET & PEMICU ALARM ---
+function connectWS(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = (e)=>{
+    const m = JSON.parse(e.data);
+    
+    if(m.type==='risk_alert'){
+      statusMap[m.crossing_id] = m.risk_level;
+      renderCards();
+      if(showAll) loadAlerts(); // Update tabel jika mode "Show All" aktif
+    } 
+    else if (m.type === 'alert_acked') {
+      // Muat ulang tabel
+      loadAlerts();
+      
+      // JIKA ada data alert yang dikirim bersamaan dengan ack, masukkan ke antrean Pop-up
+      if (m.alert_data) {
+          alarmQueue.push(m.alert_data);
+          showNextAlarm();
+      }
+    }
+  };
+  ws.onclose = ()=>setTimeout(connectWS, 2000);
+}
+
+loadCrossings().then(()=>{loadAlerts(); connectWS();});
+</script>
+</body>
+</html>

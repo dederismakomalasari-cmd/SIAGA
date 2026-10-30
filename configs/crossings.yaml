@@ -1,0 +1,55 @@
+# Konfigurasi semua perlintasan sebidang yang dipantau SIAGA
+# danger_zone_polygon: koordinat poligon (x,y) relatif terhadap frame kamera
+# (Dipakai HANYA sebagai fallback jika model segmentasi gagal mendeteksi zona)
+
+server:
+  host: "0.0.0.0"
+  port: 8000
+  snapshot_dir: "snapshots"
+  alert_cooldown_seconds: 5        # jeda minimum antar alert per crossing
+  frame_interval_seconds: 0.5      # proses 1 frame tiap 0.5 detik
+
+models:
+  # 1. Model COCO untuk orang umum, mobil, motor, dll.
+  yolo_path: "models/yolo11_best.pt"   # (tidak ada, akan fallback)
+  yolo_fallback: "yolo11n.pt"          # (otomatis diunduh ultralytics)
+  yolo_conf: 0.4
+  yolo_iou: 0.5
+
+  # 2. Model Custom Anda (Deteksi Pekerja)
+  worker_path: "models/railway_worker_best.pt"
+  worker_conf: 0.3
+  worker_iou: 0.5
+
+  # 3. Model Custom Anda (Segmentasi Zona Perlintasan)
+  seg_path: "models/crossing_segmentation_best.pt"
+  seg_conf: 0.25
+
+  # 4. Model XGBoost (Risiko)
+  xgb_path: "models/xgb_risk.json"
+  xgb_fallback_mode: "rule"
+
+# Semua kelas yang dianggap "pengguna jalan / orang / kendaraan"
+target_classes:
+  - "person"      # dari yolo11n (COCO)
+  - "car"         # dari yolo11n (COCO)
+  - "motorcycle"  # dari yolo11n (COCO)
+  - "bus"         # dari yolo11n (COCO)
+  - "truck"       # dari yolo11n (COCO)
+  - "bicycle"     # dari yolo11n (COCO)
+  - "worker"      # dari railway_worker_best.pt
+  - "helmet"      # dari railway_worker_best.pt
+  - "vest"        # dari railway_worker_best.pt
+
+crossings:
+  - id: "JPL-001"
+    name: "Perlintasan Sorowajan"
+    camera_rtsp: "sample.mp4"              # "0" = webcam lokal
+    danger_zone_polygon: [[120, 340], [450, 340], [480, 520], [100, 520]]
+    tta_default_seconds: 30
+    crossings:
+  - id: "JPL-002"
+    name: "Perlintasan Tugu"
+    camera_rtsp: "0"              # "0" = webcam lokal
+    danger_zone_polygon: [[120, 340], [450, 340], [480, 520], [100, 520]]
+    tta_default_seconds: 30

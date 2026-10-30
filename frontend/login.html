@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<title>SIAGA  Login</title>
+<style>
+  body{font-family:system-ui;background:#0b1220;color:#e5e7eb;display:flex;
+       align-items:center;justify-content:center;height:100vh;margin:0}
+  .card{background:#111a2e;padding:32px;border-radius:16px;width:340px;
+        box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  h1{margin:0 0 4px;font-size:22px}
+  p.sub{margin:0 0 20px;color:#94a3b8;font-size:13px}
+  input{width:100%;padding:10px;margin:6px 0 14px;border-radius:8px;border:1px solid #223;
+        background:#0b1220;color:#fff;box-sizing:border-box}
+  button{width:100%;padding:11px;border:none;border-radius:8px;background:#2563eb;
+         color:#fff;font-weight:600;cursor:pointer}
+  button:hover{background:#1d4ed8}
+  .err{color:#f87171;font-size:13px;margin-top:8px}
+  .hint{color:#64748b;font-size:12px;margin-top:16px;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="card">
+    <div style="text-align: center; margin-bottom: -15px;">
+    <img src="SIAGA.png" alt="Logo SIAGA" style="width: 180px; height: auto;">
+  </div>
+
+  <p class="sub" style="text-align: center;">Sistem Identifikasi & Antisipasi Gangguan Perlintasan</p>
+  <input id="u" placeholder="Username" autocomplete="off"/>
+  <input id="p" type="password" placeholder="Password"/>
+  <button onclick="login()">Masuk</button>
+  <div class="err" id="err"></div>
+  <div class="hint">
+    Demo akun:<br/>
+    guard001 / guard123 (petugas JPL-001)<br/>
+    guard002 / guard123 (petugas JPL-002)<br/>
+    kai001 / kai123 (pengawas KAI)
+  </div>
+</div>
+<script>
+async function login(){
+  const u=document.getElementById('u').value;
+  const p=document.getElementById('p').value;
+  const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:u,password:p})});
+  if(!r.ok){document.getElementById('err').textContent='Login gagal';return;}
+  const d=await r.json();
+  localStorage.setItem('siaga_token',d.token);
+  localStorage.setItem('siaga_role',d.role);
+  localStorage.setItem('siaga_name',d.name);
+  localStorage.setItem('siaga_crossing',d.crossing_id||'');
+  window.location.href = d.role==='guard' ? '/ui/guard.html' : '/ui/kai.html';
+}
+</script>
+</body>
+</html>

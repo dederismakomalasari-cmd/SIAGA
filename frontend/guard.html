@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<title>SIAGA - Dashboard Penjaga Palang</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui;background:#0b1220;color:#e5e7eb}
+  header{display:flex;justify-content:space-between;align-items:center;
+         padding:14px 22px;background:#111a2e;border-bottom:1px solid #1e293b}
+  header h1{font-size:18px;margin:0}
+  header .info{color:#94a3b8;font-size:13px}
+  .grid{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;padding:16px}
+  .panel{background:#111a2e;border-radius:12px;padding:14px}
+  .panel h2{margin:0 0 10px;font-size:14px;color:#94a3b8;text-transform:uppercase;
+            letter-spacing:.5px}
+  #statusBar{padding:14px;border-radius:10px;font-weight:700;text-align:center;
+             font-size:16px;margin-bottom:10px;transition:.3s}
+  .st-low{background:#064e3b;color:#6ee7b7}
+  .st-mid{background:#78350f;color:#fcd34d}
+  .st-high{background:#7f1d1d;color:#fca5a5;animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.65}}
+  img.stream{width:100%;border-radius:10px;background:#000}
+  .alertCard{border-left:4px solid #f87171;background:#1e1b2e;padding:10px;
+             border-radius:8px;margin-bottom:8px;font-size:13px}
+  .alertCard.mid{border-color:#fbbf24}
+  .alertCard.low{border-color:#34d399}
+  .alertCard img{width:100%;border-radius:6px;margin-top:6px}
+  .row{display:flex;gap:8px;align-items:center;margin-top:6px}
+  button.ack{background:#2563eb;border:none;color:#fff;padding:6px 10px;
+             border-radius:6px;cursor:pointer;font-size:12px}
+  button.ack:hover{background:#1d4ed8}
+  button.acked{background:#334155;cursor:default}
+  .ttaBox{display:flex;gap:8px;margin-top:10px}
+  .ttaBox input{flex:1;padding:8px;border-radius:6px;border:1px solid #223;
+                background:#0b1220;color:#fff}
+  .ttaBox button{background:#059669;border:none;color:#fff;border-radius:6px;
+                 padding:8px 12px;cursor:pointer}
+  #liveLog{max-height:520px;overflow:auto}
+</style>
+</head>
+<body>
+<header>
+   <h1 style="display: flex; align-items: center; gap: 10px; margin: 0;">
+    <img src="SIAGA.png" alt="Logo SIAGA" style="height: 35px; width: auto;">
+    <span style="font-size: 14px; font-style:italic;" > Penjaga Palang <span id="cx"></span></span>
+  </h1>
+  <div class="info"><span id="who"></span> · <a href="/ui/login.html"
+       style="color:#60a5fa;text-decoration:none" onclick="localStorage.clear()">keluar</a></div>
+</header>
+
+<div class="grid">
+  <div class="panel">
+    <div id="statusBar" class="st-low">Status: AMAN</div>
+    <img class="stream" id="stream" src="" alt="stream"/>
+    <div class="ttaBox">
+      <input id="ttaInput" type="number" placeholder="TTA (detik)" min="0"/>
+      <button onclick="setTTA()">Set TTA Manual</button>
+    </div>
+    <div style="color:#64748b;font-size:12px;margin-top:8px">
+      Atur TTA manual jika data kecepatan kereta belum tersedia dari KAI.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Log Peringatan</h2>
+    <div id="liveLog"></div>
+  </div>
+</div>
+
+<script>
+const TOKEN = localStorage.getItem('siaga_token');
+const ROLE = localStorage.getItem('siaga_role');
+const CROSS = localStorage.getItem('siaga_crossing');
+if(!TOKEN || ROLE!=='guard'){location.href='/ui/login.html';}
+
+document.getElementById('who').textContent = localStorage.getItem('siaga_name')||'';
+document.getElementById('cx').textContent = `(${CROSS})`;
+document.getElementById('stream').src = `/stream/${CROSS}`;
+
+const H = {'Authorization':`Bearer ${TOKEN}`};
+
+async function setTTA(){
+  const v = parseFloat(document.getElementById('ttaInput').value);
+  if(isNaN(v)||v<0) return;
+  await fetch('/api/tta',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+    body:JSON.stringify({crossing_id:CROSS, tta_seconds:v})});
+  alert('TTA diperbarui: '+v+' detik');
+}
+
+function renderAlert(a){
+  const cls = a.risk_level===2?'':(a.risk_level===1?'mid':'low');
+  const card = document.createElement('div');
+  card.className = `alertCard ${cls}`;
+  card.dataset.id = a.alert_id || a.id;
+  card.innerHTML = `
+    <div><b>${a.risk_label}</b> · TTA ${a.tta_seconds?.toFixed(1) ?? '-'}s</div>
+    <div style="color:#94a3b8">${new Date(a.timestamp).toLocaleString('id-ID')}</div>
+    ${a.snapshot_url||a.snapshot_path?`<img src="${a.snapshot_url || '/snapshots/'+a.snapshot_path}"/>`:''}
+    <div class="row">
+      <button class="ack" onclick="ack(${a.alert_id||a.id}, this)">✔ Konfirmasi</button>
+    </div>
+  `;
+  return card;
+}
+
+async function ack(id, btn){
+  await fetch('/api/alerts/ack',{method:'POST',headers:{...H,'Content-Type':'application/json'},
+    body:JSON.stringify({alert_id:id, note:''})});
+  btn.textContent='✔ Ditangani';
+  btn.disabled=true; btn.classList.add('acked');
+}
+
+async function loadHistory(){
+  const r = await fetch('/api/alerts',{headers:H});
+  const rows = await r.json();
+  const log = document.getElementById('liveLog');
+  log.innerHTML='';
+  rows.forEach(a=>{
+    const c = renderAlert({...a, snapshot_url:a.snapshot_path?'/snapshots/'+a.snapshot_path:null});
+    if(a.acked){c.querySelector('.ack').textContent='✔ Ditangani';
+                 c.querySelector('.ack').disabled=true;
+                 c.querySelector('.ack').classList.add('acked');}
+    log.appendChild(c);
+  });
+}
+
+function setStatus(level){
+  const el = document.getElementById('statusBar');
+  el.className = 'st-'+(level===2?'high':level===1?'mid':'low');
+  el.textContent = 'Status: '+(level===2?'BAHAYA':level===1?'PERHATIAN':'AMAN');
+}
+
+// WebSocket
+function connectWS(){
+  const ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = (e)=>{
+    const m = JSON.parse(e.data);
+    if(m.type==='risk_alert' && m.crossing_id===CROSS){
+      setStatus(m.risk_level);
+      const card = renderAlert(m);
+      const log = document.getElementById('liveLog');
+      log.prepend(card);
+      // bunyikan beep pada HIGH
+      if(m.risk_level===2){
+        try{
+          const ctx = new (window.AudioContext||window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          osc.frequency.value = 880; osc.connect(ctx.destination);
+          osc.start(); setTimeout(()=>osc.stop(), 400);
+        }catch(_){}
+      }
+    }
+  };
+  ws.onclose = ()=>setTimeout(connectWS, 2000);
+}
+connectWS();
+loadHistory();
+</script>
+</body>
+</html>

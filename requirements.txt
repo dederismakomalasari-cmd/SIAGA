@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+pyyaml
+numpy>=2.0
+opencv-python-headless
+ultralytics
+xgboost
+scikit-learn
+pillow
